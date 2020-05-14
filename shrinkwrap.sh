@@ -15,20 +15,20 @@ START=$(cat /tmp/fdisk.log | grep "83 Linux" | awk '{print $2}')
 
 echo "START of partition: $START"
 
-sudo losetup -d /dev/loop0 || echo "Good - no /dev/loop0 is already free"
-sudo losetup /dev/loop0 $1
-sudo partprobe /dev/loop0
-sudo lsblk /dev/loop0
-sudo e2fsck -f /dev/loop0p2
-sudo resize2fs -p /dev/loop0p2 -M
-sudo dumpe2fs -h /dev/loop0p2 | tee /tmp/dumpe2fs
+sudo losetup -d /dev/loop5 || echo "Good - no /dev/loop5 is already free"
+sudo losetup /dev/loop5 $1
+sudo partprobe /dev/loop5
+sudo lsblk /dev/loop5
+sudo e2fsck -f /dev/loop5p2
+sudo resize2fs -p /dev/loop5p2 -M
+sudo dumpe2fs -h /dev/loop5p2 | tee /tmp/dumpe2fs
 # Calculate the size of the resized filesystem in 512 blocks which we'll need
 # later for fdisk to also resize the partition add 16 blocks just to be safe
 NEWSIZE=$(cat /tmp/dumpe2fs |& awk -F: '/Block count/{count=$2} /Block size/{size=$2} END{print count*size/512 +  16}')
 echo "NEW SIZE of partition: $NEWSIZE  512-blocks"
 
 # now pipe commands to fdisk
-sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF | sudo fdisk /dev/loop0 || echo "Ignore that error."
+sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF | sudo fdisk /dev/loop5 || echo "Ignore that error."
   p # print the in-memory partition table
   d # delete partition
   2 # partition 2
@@ -45,19 +45,19 @@ EOF
 
 sudo fdisk -l $1
 sudo fdisk -l $1 > /tmp/fdisk_new.log
-sudo losetup -d /dev/loop0
+sudo losetup -d /dev/loop5
 
-FINALEND_BYTES=$(cat /tmp/fdisk_new.log | grep "83 Linux" | awk '{print ($3+1)*512}')
+FINALEND_BYTES=$(cat /tmp/fdisk_new.log | grep "83 Linux" | awk '{printf "%i",($3+1)*512}')
 echo "TRUNCATE AT: $FINALEND_BYTES bytes"
 
 # Truncate the image file on disk
 sudo truncate -s $FINALEND_BYTES $1
 
 # Fill the empty space with zeros for better compressability
-sudo losetup /dev/loop0 $1
-sudo partprobe /dev/loop0
+sudo losetup /dev/loop5 $1
+sudo partprobe /dev/loop5
 sudo mkdir -p /tmp/mountpoint
-sudo mount /dev/loop0p2 /tmp/mountpoint
+sudo mount /dev/loop5p2 /tmp/mountpoint
 sudo dd if=/dev/zero of=/tmp/mountpoint/zero.txt  status=progress || echo "Expected to fail with out of space"
 sudo rm /tmp/mountpoint/zero.txt
 df -h /tmp/mountpoint
@@ -67,5 +67,5 @@ sudo rmdir /tmp/mountpoint
 
 echo "We're done. Final info: "
 sudo fdisk -l $1
-sudo dumpe2fs -h /dev/loop0p2 | tee /tmp/dumpe2fs
-sudo losetup -d /dev/loop0
+sudo dumpe2fs -h /dev/loop5p2 | tee /tmp/dumpe2fs
+sudo losetup -d /dev/loop5
